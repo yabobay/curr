@@ -5,7 +5,7 @@
 	"main": "curr.js",
 	"type": "module",
 	"author": "yabobay",
-	"license": "GPL-3.0-only",
+	"license": "BSD-2-Clause",
 	"dependencies": {
 		"ascii-table": "^0.0.9",
 		"google-currency-scraper": "^3.2.0"

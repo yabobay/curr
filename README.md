@@ -2,6 +2,8 @@
 
 A currency conversion script for the terminal
 
+![screenshot](screenshot.png)
+
 ## usage
 
 `node curr.js usd eur`
