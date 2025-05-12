@@ -40,14 +40,14 @@ struct CurrencyInformation {
 }
 
 enum CurrErr {
-    StrangeCurrencies(String, String),
+    StrangeCurrencies(String),
     InternetProblem(),
 }
 
 impl From<CurrErr> for String {
     fn from(value: CurrErr) -> Self {
         match value {
-            CurrErr::StrangeCurrencies(a, b) => format!("Either {a} or {b} isn't a real currency!"),
+            CurrErr::StrangeCurrencies(x) => format!("{x} isn't a real currency!"),
             CurrErr::InternetProblem() => "Something went wrong with the internet!".to_string(),
         }
     }
@@ -64,8 +64,10 @@ impl CurrencyInformation {
     fn getRate<T: Into<String>>(&mut self, from: T, to: T) -> Result<f64, CurrErr> {
         let from = &from.into().to_uppercase();
         let to = &to.into().to_uppercase();
-        if !(cashkit::code_currency(from).is_some() && cashkit::code_currency(to).is_some()) {
-            return Err(CurrErr::StrangeCurrencies(from.to_string(), to.to_string()));
+        for curr in &[from, to] {
+            if !cashkit::code_currency(curr).is_some() {
+                return Err(CurrErr::StrangeCurrencies(curr.to_string()));
+            }
         }
         // TODO: find rate in rates
         match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
