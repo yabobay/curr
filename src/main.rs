@@ -47,6 +47,14 @@ impl CurrencyInformation {
         self.rates.push(rate.flip());
         self.rates.push(rate);
     }
+    fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<f64> {
+        for i in &self.rates {
+            if i.from == from.as_ref() && i.to == to.as_ref() {
+                return Some(i.rate);
+            }
+        }
+        None
+    }
     fn getRate<T: Into<String>>(&mut self, from: T, to: T) -> Result<f64, CurrErr> {
         let from = &from.into().to_uppercase();
         let to = &to.into().to_uppercase();
@@ -55,16 +63,21 @@ impl CurrencyInformation {
                 return Err(CurrErr::StrangeCurrencies(curr.to_string()));
             }
         }
-        // TODO: find rate in rates
-        match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
-            Ok(rate) => {
-                self.add(ExchangeRate::new(from, to, rate));
-                Ok(rate)
-            }
-            Err(_) => Err(CurrErr::InternetProblem()),
+        match self.find(from, to) {
+            Some(x) => Ok(x),
+            None => match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
+                Ok(rate) => {
+                    self.add(ExchangeRate::new(from, to, rate));
+                    Ok(rate)
+                }
+                Err(_) => Err(CurrErr::InternetProblem()),
+            },
         }
     }
-    fn convert<T: Into<String>>(&mut self, from: T, to: T, price: f64) -> Result<f64, CurrErr> {
+    fn convert<T: Into<String> + Copy>(&mut self, from: T, to: T, price: f64) -> Result<f64, CurrErr> {
+	if &from.into() == &to.into() {
+	    return Ok(price)
+	}
         match self.getRate(from, to) {
             Ok(rate) => Ok(price * rate),
             Err(e) => Err(e),
