@@ -95,14 +95,6 @@ impl std::fmt::Display for CurrencyInformation {
     }
 }
 
-//#[cfg(debug_assertions)]
-//fn changePanicHook() {}
-//
-//#[cfg(not(debug_assertions))]
-//fn changePanicHook() {
-//    set_hook(Box::new(|_| {}));
-//}
-
 fn formatCurrency<T: Into<String> + ?Sized>(currency: T, amount: f64) -> String {
     match iso::find(&currency.into()) {
         Some(currency) => {
@@ -115,7 +107,6 @@ fn formatCurrency<T: Into<String> + ?Sized>(currency: T, amount: f64) -> String 
     }
 }
 
-#[allow(dead_code)]
 fn slurpFile(filename: String) -> Option<String> {
     let mut file = File::open(filename).expect("");
     let mut contents = String::new();
@@ -125,9 +116,7 @@ fn slurpFile(filename: String) -> Option<String> {
     }
 }
 
-#[allow(unused_variables)]
 fn main() -> Result<(), String> {
-    //changePanicHook();
     let mut info = CurrencyInformation::new();
     let mut currencies: Vec<String> = Vec::new();
     let mut prices: Vec<f64> = Vec::new();
