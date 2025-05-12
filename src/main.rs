@@ -1,16 +1,13 @@
 #![allow(non_snake_case)]
-#![allow(dead_code)]
-#![allow(unused_imports)]
 
 use comfy_table::Table;
-use std::collections::BTreeSet;
 use std::fs::File;
-use std::panic::{catch_unwind, set_hook};
+use std::panic::catch_unwind;
 use std::str::FromStr;
 
 use cashkit;
 use rust_decimal::Decimal;
-use rusty_money::{iso, iso::Currency, FormattableCurrency, Money};
+use rusty_money::{iso, Money};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -107,6 +104,7 @@ fn formatCurrency<T: Into<String> + ?Sized>(currency: T, amount: f64) -> String 
     }
 }
 
+#[allow(dead_code)]
 fn slurpFile(filename: String) -> Option<String> {
     let mut file = File::open(filename).expect("");
     let mut contents = String::new();
