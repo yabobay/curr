@@ -7,6 +7,7 @@ edition = "2021"
 cashkit = "0.1.0"
 comfy-table = "7.1.4"
 json = "0.12.4"
+levenshtein = "1.0.5"
 rust_decimal = "1.36.0"
 rusty-money = "0.4.1"
 serde = { version = "1.0.217", features = ["derive"] }

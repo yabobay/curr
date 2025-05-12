@@ -1,14 +1,14 @@
 #![allow(non_snake_case)]
 
-use comfy_table::Table;
-use std::fs::File;
-use std::panic::catch_unwind;
-use std::str::FromStr;
-
 use cashkit;
+use comfy_table::Table;
+use levenshtein::levenshtein;
 use rust_decimal::Decimal;
 use rusty_money::{iso, Money};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::panic::catch_unwind;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ExchangeRate {
@@ -37,20 +37,6 @@ impl ExchangeRate {
 #[derive(Serialize, Deserialize)]
 struct CurrencyInformation {
     rates: Vec<ExchangeRate>,
-}
-
-enum CurrErr {
-    StrangeCurrencies(String),
-    InternetProblem(),
-}
-
-impl From<CurrErr> for String {
-    fn from(value: CurrErr) -> Self {
-        match value {
-            CurrErr::StrangeCurrencies(x) => format!("{x} isn't a real currency!"),
-            CurrErr::InternetProblem() => "Something went wrong with the internet!".to_string(),
-        }
-    }
 }
 
 impl CurrencyInformation {
@@ -82,6 +68,29 @@ impl CurrencyInformation {
         match self.getRate(from, to) {
             Ok(rate) => Ok(price * rate),
             Err(e) => Err(e),
+        }
+    }
+}
+
+enum CurrErr {
+    StrangeCurrencies(String),
+    InternetProblem(),
+}
+
+impl From<CurrErr> for String {
+    fn from(value: CurrErr) -> Self {
+        match value {
+            CurrErr::StrangeCurrencies(curr) => {
+                let didYouMean = cashkit::active_currencies()
+                    .into_iter()
+                    .min_by_key(|x| levenshtein(x.code, &curr))
+                    .unwrap();
+                format!(
+                    "{} isn't a real currency! Did you mean {} ({})?",
+                    curr, didYouMean.code, didYouMean.name
+                )
+            }
+            CurrErr::InternetProblem() => "Something went wrong with the internet!".to_string(),
         }
     }
 }
@@ -131,7 +140,11 @@ fn main() -> Result<(), String> {
         prices.push(1.);
     }
     let mut table = Table::new();
-    table.set_header(&currencies);
+    table.set_header(
+        (&currencies)
+            .into_iter()
+            .map(|x| cashkit::code_currency(&x).expect("?").name),
+    );
     for p in prices {
         let mut values: Vec<String> = Vec::new();
         for c in &currencies {
