@@ -1,12 +1,16 @@
 #![allow(non_snake_case)]
 
 use cashkit;
+use chrono::NaiveDateTime;
+use chrono::Utc;
 use comfy_table::Table;
 use levenshtein::levenshtein;
+use postcard::{from_bytes, to_allocvec};
 use rust_decimal::Decimal;
 use rusty_money::{iso, Money};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
+use std::io::{Read, Write};
 use std::panic::catch_unwind;
 use std::str::FromStr;
 
@@ -15,6 +19,7 @@ struct ExchangeRate {
     from: String,
     to: String,
     rate: f64,
+    obtention: NaiveDateTime, // always in UTC so it's okay
 }
 
 impl ExchangeRate {
@@ -23,6 +28,7 @@ impl ExchangeRate {
             from: from.into(),
             to: to.into(),
             rate,
+            obtention: Utc::now().naive_utc(),
         }
     }
     fn flip(&self) -> Self {
@@ -30,6 +36,7 @@ impl ExchangeRate {
             from: self.to.clone(),
             to: self.from.clone(),
             rate: 1.0 / self.rate,
+            obtention: self.obtention,
         }
     }
 }
@@ -47,10 +54,24 @@ impl CurrencyInformation {
         self.rates.push(rate.flip());
         self.rates.push(rate);
     }
-    fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<f64> {
+    fn remove<T: AsRef<str>>(&mut self, from: T, to: T) -> bool {
+        for i in 0..(self.rates.len() - 1) {
+            if self.rates[i].from == from.as_ref() && self.rates[i].to == to.as_ref() {
+                self.rates.swap_remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+    fn replace(&mut self, rate: ExchangeRate) -> bool {
+        let r = self.remove(&rate.from, &rate.to);
+        self.add(rate);
+        return r;
+    }
+    fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<&ExchangeRate> {
         for i in &self.rates {
             if i.from == from.as_ref() && i.to == to.as_ref() {
-                return Some(i.rate);
+                return Some(i);
             }
         }
         None
@@ -64,7 +85,7 @@ impl CurrencyInformation {
             }
         }
         match self.find(from, to) {
-            Some(x) => Ok(x),
+            Some(x) => Ok(x.rate),
             None => match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
                 Ok(rate) => {
                     self.add(ExchangeRate::new(from, to, rate));
@@ -74,10 +95,10 @@ impl CurrencyInformation {
             },
         }
     }
-    fn convert<T: Into<String> + Copy>(&mut self, from: T, to: T, price: f64) -> Result<f64, CurrErr> {
-	if &from.into() == &to.into() {
-	    return Ok(price)
-	}
+    fn convert(&mut self, from: &String, to: &String, price: f64) -> Result<f64, CurrErr> {
+        if from == to {
+            return Ok(price);
+        }
         match self.getRate(from, to) {
             Ok(rate) => Ok(price * rate),
             Err(e) => Err(e),
@@ -108,16 +129,8 @@ impl From<CurrErr> for String {
     }
 }
 
-#[allow(unused_must_use)]
-impl std::fmt::Display for CurrencyInformation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "Elements: {}", self.rates.len());
-        Ok(())
-    }
-}
-
-fn formatCurrency<T: Into<String> + ?Sized>(currency: T, amount: f64) -> String {
-    match iso::find(&currency.into()) {
+fn formatCurrency<T: AsRef<str>>(currency: T, amount: f64) -> String {
+    match iso::find(&currency.as_ref()) {
         Some(currency) => {
             format!(
                 "{}",
@@ -128,30 +141,44 @@ fn formatCurrency<T: Into<String> + ?Sized>(currency: T, amount: f64) -> String 
     }
 }
 
-#[allow(dead_code)]
-fn slurpFile(filename: String) -> Option<String> {
-    let mut file = File::open(filename).expect("");
-    let mut contents = String::new();
-    match std::io::Read::read_to_string(&mut file, &mut contents) {
-        Ok(_) => Some(contents),
-        Err(_) => None,
-    }
-}
-
+#[allow(deprecated)]
 fn main() -> Result<(), String> {
-    let mut info = CurrencyInformation::new();
-    let mut currencies: Vec<String> = Vec::new();
-    let mut prices: Vec<f64> = Vec::new();
+    let filename = (match std::env::home_dir() {
+        Some(dir) => dir,
+        None => std::env::current_dir().unwrap(),
+    })
+    .join(".curr-cache");
+
+    let mut info: CurrencyInformation = {
+        let mut info = None;
+        match File::open(&filename) {
+            Ok(mut file) => {
+                let mut buf = Vec::<u8>::new();
+                file.read_to_end(&mut buf).unwrap();
+                if buf.len() > 0 {
+                    info = Some(from_bytes(&buf).unwrap());
+                }
+            }
+            Err(_) => (),
+        };
+        match info {
+            Some(info) => info,
+            None => CurrencyInformation::new(),
+        }
+    };
+
+    let mut currencies = Vec::<String>::new();
+    let mut prices = Vec::<f64>::new();
     for i in std::env::args().skip(1) {
         match f64::from_str(&i) {
             Ok(i) => prices.push(i),
-            Err(_) => currencies.push(i),
+            Err(_) => currencies.push(i.to_uppercase()),
         }
     }
-    currencies = currencies.into_iter().map(|x| x.to_uppercase()).collect();
     if prices.is_empty() {
         prices.push(1.);
     }
+
     let mut table = Table::new();
     table.set_header(
         (&currencies)
@@ -166,5 +193,11 @@ fn main() -> Result<(), String> {
         table.add_row(values);
     }
     println!("{table}");
+
+    match File::create(&filename) {
+        Ok(mut file) => file.write_all(&to_allocvec(&info).unwrap()).unwrap(),
+        Err(e) => return Err(e.to_string()),
+    }
+
     Ok(())
 }

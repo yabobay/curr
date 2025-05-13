@@ -5,9 +5,11 @@ edition = "2021"
 
 [dependencies]
 cashkit = "0.1.0"
+chrono = { version = "0.4.41", features = ["now", "serde"], default-features = false }
 comfy-table = "7.1.4"
 json = "0.12.4"
 levenshtein = "1.0.5"
+postcard = { version = "1.1.1", features = ["use-std"] }
 rust_decimal = "1.36.0"
 rusty-money = "0.4.1"
 serde = { version = "1.0.217", features = ["derive"] }
