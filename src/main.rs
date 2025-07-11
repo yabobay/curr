@@ -167,12 +167,19 @@ fn main() -> Result<(), String> {
         }
     };
 
+    // unfortunately we can't make a Vec of Currencys because the type is private :(
     let mut currencies = Vec::<String>::new();
     let mut prices = Vec::<f64>::new();
     for i in std::env::args().skip(1) {
         match f64::from_str(&i) {
             Ok(i) => prices.push(i),
-            Err(_) => currencies.push(i.to_uppercase()),
+            Err(_) => {
+                let code = i.to_uppercase();
+                match cashkit::code_currency(&code) {
+                    Some(_) => currencies.push(code),
+                    None => return Err(CurrErr::StrangeCurrencies(code).into())
+                }
+            }
         }
     }
     if prices.is_empty() {
