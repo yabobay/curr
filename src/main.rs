@@ -63,11 +63,6 @@ impl CurrencyInformation {
         }
         return false;
     }
-    fn replace(&mut self, rate: ExchangeRate) -> bool {
-        let r = self.remove(&rate.from, &rate.to);
-        self.add(rate);
-        return r;
-    }
     fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<&ExchangeRate> {
         for i in &self.rates {
             if i.from == from.as_ref() && i.to == to.as_ref() {
@@ -85,7 +80,14 @@ impl CurrencyInformation {
             }
         }
         match self.find(from, to) {
-            Some(x) => Ok(x.rate),
+            Some(exchangeRate) => {
+                if (Utc::now().naive_utc() - exchangeRate.obtention).num_weeks() >= 1 {
+                    self.remove(from, to);
+                    self.getRate(from, to)
+                } else {
+                    Ok(exchangeRate.rate)
+                }
+            }
             None => match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
                 Ok(rate) => {
                     self.add(ExchangeRate::new(from, to, rate));
@@ -131,12 +133,10 @@ impl From<CurrErr> for String {
 
 fn formatCurrency<T: AsRef<str>>(currency: T, amount: f64) -> String {
     match iso::find(&currency.as_ref()) {
-        Some(currency) => {
-            format!(
-                "{}",
-                Money::from_decimal(Decimal::from_f64_retain(amount).unwrap(), currency)
-            )
-        }
+        Some(currency) => format!(
+            "{}",
+            Money::from_decimal(Decimal::from_f64_retain(amount).unwrap(), currency)
+        ),
         None => amount.to_string(),
     }
 }
@@ -177,7 +177,7 @@ fn main() -> Result<(), String> {
                 let code = i.to_uppercase();
                 match cashkit::code_currency(&code) {
                     Some(_) => currencies.push(code),
-                    None => return Err(CurrErr::StrangeCurrencies(code).into())
+                    None => return Err(CurrErr::StrangeCurrencies(code).into()),
                 }
             }
         }
