@@ -161,11 +161,9 @@ fn main() -> Result<(), String> {
             }
             Err(_) => (),
         };
-        match info {
-            Some(info) => info,
-            None => CurrencyInformation::new(),
-        }
-    };
+        info
+    }
+    .unwrap_or_else(|| CurrencyInformation::new());
 
     // unfortunately we can't make a Vec of Currencys because the type is private :(
     let mut currencies = Vec::<String>::new();
