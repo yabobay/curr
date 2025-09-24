@@ -1,8 +1,7 @@
 #![allow(non_snake_case)]
 
 use cashkit;
-use chrono::NaiveDateTime;
-use chrono::Utc;
+use chrono::{NaiveDateTime, Utc};
 use comfy_table::Table;
 use levenshtein::levenshtein;
 use postcard::{from_bytes, to_allocvec};
