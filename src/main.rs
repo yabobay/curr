@@ -79,23 +79,19 @@ impl CurrencyInformation {
                 return Err(CurrErr::StrangeCurrencies(curr.to_string()));
             }
         }
-        match self.find(from, to) {
-            Some(exchangeRate) => {
-                if (Utc::now().naive_utc() - exchangeRate.obtention).num_weeks() >= 1 {
-                    self.remove(from, to);
-                    self.getRate(from, to)
-                } else {
-                    Ok(exchangeRate.rate)
-                }
+        if let Some(rate) = self.find(from, to) {
+            if (Utc::now().naive_utc() - rate.obtention).num_weeks() < 1 {
+                return Ok(rate.rate);
             }
-            None => match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
-                Ok(rate) => {
-                    self.add(ExchangeRate::new(from, to, rate));
-                    Ok(rate)
-                }
-                Err(_) => Err(CurrErr::InternetProblem()),
-            },
+            self.remove(from, to);
         }
+        return match catch_unwind(|| cashkit::exchange(from, to, 1.)) {
+            Ok(rate) => {
+                self.add(ExchangeRate::new(from, to, rate));
+                Ok(rate)
+            }
+            Err(_) => Err(CurrErr::InternetProblem()),
+        };
     }
     fn convert(&mut self, from: &String, to: &String, price: f64) -> Result<f64, CurrErr> {
         if from == to {
