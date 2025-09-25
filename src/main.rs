@@ -50,7 +50,6 @@ impl CurrencyInformation {
         Self { rates: vec![] }
     }
     fn add(&mut self, rate: ExchangeRate) {
-        self.rates.push(rate.flip());
         self.rates.push(rate);
     }
     fn remove<T: AsRef<str>>(&mut self, from: T, to: T) -> bool {
@@ -62,10 +61,12 @@ impl CurrencyInformation {
         }
         return false;
     }
-    fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<&ExchangeRate> {
+    fn find<T: AsRef<str>>(&mut self, from: T, to: T) -> Option<ExchangeRate> {
         for i in &self.rates {
             if i.from == from.as_ref() && i.to == to.as_ref() {
-                return Some(i);
+                return Some(i.clone());
+            } else if i.from == to.as_ref() && i.to == from.as_ref() {
+                return Some(i.flip());
             }
         }
         None
